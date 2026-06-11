@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WebLead | Criar Conta</title>
+<title>Saas Maps | Criar Conta</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -220,6 +220,12 @@ body::after{
     font-weight:600;
 }
 
+#googleBtn{
+    display:flex;
+    justify-content:center;
+    margin-bottom:20px;
+}
+
 /* Responsivo */
 
 @media(max-width:500px){
@@ -243,36 +249,38 @@ body::after{
             <i class="fa-solid fa-user"></i>
         </div>
 
-        <h1>WebLead</h1>
+        <h1>Saas Maps</h1>
         <p>Crie sua conta para começar</p>
 
     </div>
 
-    <form>
+    <form id="registerForm">
 
         <div class="input-box">
             <i class="fa-solid fa-user"></i>
-            <input type="text" placeholder="Seu nome">
+            <input type="text" id="name" placeholder="Seu nome" required>
         </div>
 
         <div class="input-box">
             <i class="fa-solid fa-envelope"></i>
-            <input type="email" placeholder="Seu e-mail">
+            <input type="email" id="email" placeholder="Seu e-mail" required>
         </div>
 
         <div class="input-box">
             <i class="fa-solid fa-lock"></i>
-            <input type="password" placeholder="Sua senha">
+            <input type="password" id="password" placeholder="Sua senha" required>
         </div>
 
        
-        <button class="login-btn">
+        <button type="submit" class="login-btn">
             Criar conta
         </button>
 
         <div class="divider">
             OU
         </div>
+
+        <div id="googleBtn"></div>
 
         <div class="register">
             Já possui conta?
@@ -282,6 +290,48 @@ body::after{
     </form>
 
 </div>
+
+<script src="../assets/js/config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+function handleGoogleRegister(response) {
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    sessionStorage.setItem('saas_user', payload.name || payload.email.split('@')[0]);
+    sessionStorage.setItem('saas_email', payload.email);
+    window.location.href = '../Dashboard/dashboard.html';
+}
+
+document.getElementById('registerForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    if (!name) return;
+    sessionStorage.setItem('saas_user', name);
+    if (email) sessionStorage.setItem('saas_email', email);
+    window.location.href = '../Dashboard/dashboard.html';
+});
+
+window.addEventListener('load', function() {
+    if (!CONFIG.googleAuth?.clientId) return;
+
+    const init = () => {
+        google.accounts.id.initialize({
+            client_id: CONFIG.googleAuth.clientId,
+            callback: handleGoogleRegister
+        });
+        google.accounts.id.renderButton(document.getElementById('googleBtn'), {
+            theme: 'filled_black',
+            size: 'large',
+            width: 350,
+            text: 'signup_with',
+            locale: 'pt-BR'
+        });
+    };
+
+    if (window.google?.accounts?.id) init();
+    else document.querySelector('script[src*="gsi/client"]').addEventListener('load', init);
+});
+</script>
 
 </body>
 </html>

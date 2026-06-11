@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saas Maps | Dashboard</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body>
+
+<div class="dashboard-clean">
+
+    <!-- Header -->
+    <div class="dash-header">
+        <div class="dash-badge">
+            <i class="fa-solid fa-bolt"></i>
+            Encontre oportunidades
+        </div>
+
+        <h1>Busca de Estabelecimentos</h1>
+
+        <p class="subtitle">
+            Encontre negócios que ainda não têm presença digital — sem site e sem cadastro no Google Maps.
+            <span class="subtitle-line">Oportunidades esperando por você.</span>
+        </p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="dash-tabs">
+        <button class="dash-tab active" data-tab="search">
+            <i class="fa-solid fa-magnifying-glass"></i> Buscar
+        </button>
+        <button class="dash-tab" data-tab="saved">
+            <i class="fa-solid fa-bookmark"></i> Salvos
+        </button>
+        <button class="dash-tab" data-tab="panel">
+            <i class="fa-solid fa-chart-simple"></i> Painel
+        </button>
+    </div>
+
+    <!-- Search Card -->
+    <div class="dash-card" id="searchCard">
+        <form class="search-form" id="searchForm">
+            <div class="form-row">
+                <div class="field">
+                    <label for="cityInput">Cidade / Região</label>
+                    <input type="text" id="cityInput" placeholder="Ex: São Paulo, SP" required>
+                </div>
+                <div class="field">
+                    <label for="categoryInput">Tipo de Negócio</label>
+                    <input type="text" id="categoryInput" placeholder="Ex: restaurante" list="categoryList">
+                    <datalist id="categoryList">
+                        <option value="Restaurante">
+                        <option value="Padaria">
+                        <option value="Farmácia">
+                        <option value="Salão de Beleza">
+                        <option value="Barbearia">
+                        <option value="Oficina Mecânica">
+                        <option value="Pet Shop">
+                        <option value="Dentista">
+                        <option value="Academia">
+                        <option value="Mercado">
+                    </datalist>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-search" id="searchBtn">
+                <i class="fa-solid fa-magnifying-glass"></i> Buscar Estabelecimentos
+            </button>
+        </form>
+    </div>
+
+    <!-- Scan Progress -->
+    <div class="scan-progress" id="scanProgress">
+        <div class="progress-label" id="progressLabel">Processando...</div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text" id="progressText"></div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="results-section" id="resultsSection" style="display:none; margin-top: 28px;">
+        <div class="results-header">
+            <h3>
+                <i class="fa-solid fa-list"></i>
+                Resultados (<span id="resultCount">0</span>)
+            </h3>
+            <div class="results-actions">
+                <div class="search-inline">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="tableSearch" placeholder="Filtrar resultados...">
+                </div>
+            </div>
+        </div>
+
+        <div class="results-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Estabelecimento</th>
+                        <th>Cidade</th>
+                        <th>Telefone</th>
+                        <th>Site</th>
+                        <th>Google Maps</th>
+                        <th>Score IA</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+
+        <div class="pagination" id="pagination">
+            <button class="page-btn" id="prevPage" onclick="App.prevPage()" disabled>
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <span class="page-info" id="pageInfo">Página 1 de 1</span>
+            <button class="page-btn" id="nextPage" onclick="App.nextPage()" disabled>
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <div class="empty-state" id="emptyState">
+            <i class="fa-solid fa-store"></i>
+            <h4>Nenhum lead encontrado</h4>
+            <p>Informe uma cidade real (ex: "Fortaleza, CE") e clique em Buscar. Os dados vêm do OpenStreetMap.</p>
+        </div>
+    </div>
+
+    <!-- Action Buttons (visible after results) -->
+    <div id="actionsRow" style="display:none; margin-top: 20px; gap: 12px; flex-wrap: wrap;">
+        <button class="btn btn-secondary" id="exportBtn">
+            <i class="fa-solid fa-file-csv"></i> Exportar CSV
+        </button>
+        <button class="btn btn-secondary" id="clearBtn">
+            <i class="fa-solid fa-trash"></i> Limpar
+        </button>
+    </div>
+
+    <!-- Saved Leads Section (loaded dynamically via JS on tab click) -->
+    <div id="savedSection" style="display:none;">
+        <div class="saved-header">
+            <h2><i class="fa-solid fa-bookmark"></i> Leads Salvos <span class="saved-count" id="savedCount">(0)</span></h2>
+        </div>
+        <div id="savedLeadsList"></div>
+        <div class="empty-state" id="savedEmpty">
+            <i class="fa-solid fa-bookmark"></i>
+            <h4>Nenhum lead salvo</h4>
+            <p>Faça uma busca e os leads aparecerão aqui automaticamente.</p>
+        </div>
+    </div>
+
+</div>
+
+<div class="modal-overlay" id="detailModal">
+    <div class="modal">
+        <h3><i class="fa-solid fa-store"></i> Detalhes do Estabelecimento</h3>
+        <div class="modal-grid" id="modalGrid"></div>
+        <button class="btn btn-secondary modal-close" id="modalClose">Fechar</button>
+    </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../assets/js/config.js"></script>
+<script>
+if (CONFIG.googleMaps.apiKey) {
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${CONFIG.googleMaps.apiKey}&libraries=places`;
+    s.async = true;
+    document.head.appendChild(s);
+}
+</script>
+<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/search-engine.js"></script>
+<script src="../assets/js/ai-scanner.js"></script>
+<script src="../assets/js/app.js"></script>
+
+</body>
+</html>
