@@ -37,9 +37,6 @@
         <button class="dash-tab" data-tab="saved">
             <i class="fa-solid fa-bookmark"></i> Salvos
         </button>
-        <button class="dash-tab" data-tab="panel">
-            <i class="fa-solid fa-chart-simple"></i> Painel
-        </button>
     </div>
 
     <!-- Search Card -->
@@ -80,14 +77,14 @@
                         <option value="53">Distrito Federal</option>
                     </select>
                 </div>
-                <div class="search-field">
+                <div class="search-field search-field-city">
                     <label class="sr-only" for="cityInput">Cidade</label>
                     <i class="fa-solid fa-city"></i>
-                    <input type="text" id="cityInput" placeholder="Selecione o estado primeiro..." required disabled list="cityList">
-                    <datalist id="cityList"></datalist>
+                    <input type="text" id="cityInput" placeholder="Selecione o estado primeiro..." required disabled autocomplete="off">
                     <div class="city-loading" id="cityLoading" style="display:none;">
                         <i class="fa-solid fa-spinner fa-spin"></i>
                     </div>
+                    <div class="city-suggestions" id="citySuggestions" hidden></div>
                 </div>
                 <div class="search-field">
                     <label class="sr-only" for="categoryInput">Tipo de Negócio</label>
@@ -115,27 +112,37 @@
 
     <!-- ===== PANEL CONTENT (visible only on "Painel" tab) ===== -->
     <div id="panelContent" style="display:none;">
+        <div class="panel-hero">
+            <div class="panel-hero-text">
+                <h2><i class="fa-solid fa-chart-pie"></i> Painel de Oportunidades</h2>
+                <p>Visão geral dos seus leads, presença digital e funil comercial</p>
+            </div>
+            <div class="panel-hero-badge" id="panelUpdatedAt">
+                <i class="fa-solid fa-clock"></i> Atualizado agora
+            </div>
+        </div>
+
         <!-- Stats -->
         <div class="stats-grid" id="statsGrid">
-            <div class="stat-card" style="--stat-color:#a5b4fc; --stat-glow:rgba(99,102,241,.22)">
+            <div class="stat-card stat-card-total" style="--stat-color:#a5b4fc; --stat-glow:rgba(99,102,241,.22)">
                 <div class="stat-card-icon"><i class="fa-solid fa-layer-group"></i></div>
                 <div class="stat-card-title">Total de leads</div>
                 <div class="stat-card-value" id="statTotal">0</div>
                 <div class="stat-card-subtitle">Oportunidades mapeadas</div>
             </div>
-            <div class="stat-card" style="--stat-color:#22c55e; --stat-glow:rgba(34,197,94,.18)">
+            <div class="stat-card stat-card-site" style="--stat-color:#22c55e; --stat-glow:rgba(34,197,94,.18)">
                 <div class="stat-card-icon"><i class="fa-solid fa-globe"></i></div>
                 <div class="stat-card-title">Com site</div>
                 <div class="stat-card-value" id="statWithSite">0</div>
-                <div class="stat-card-subtitle">Presença digital</div>
+                <div class="stat-card-subtitle">Presença digital ativa</div>
             </div>
-            <div class="stat-card" style="--stat-color:#6366f1; --stat-glow:rgba(99,102,241,.22)">
+            <div class="stat-card stat-card-nosite" style="--stat-color:#6366f1; --stat-glow:rgba(99,102,241,.22)">
                 <div class="stat-card-icon"><i class="fa-solid fa-globe-slash"></i></div>
                 <div class="stat-card-title">Sem site</div>
                 <div class="stat-card-value" id="statWithoutSite">0</div>
                 <div class="stat-card-subtitle">Prioridade comercial</div>
             </div>
-            <div class="stat-card" style="--stat-color:#ec4899; --stat-glow:rgba(236,72,153,.18)">
+            <div class="stat-card stat-card-categories" style="--stat-color:#ec4899; --stat-glow:rgba(236,72,153,.18)">
                 <div class="stat-card-icon"><i class="fa-solid fa-tags"></i></div>
                 <div class="stat-card-title">Categorias</div>
                 <div class="stat-card-value" id="statCategories">0</div>
@@ -143,13 +150,15 @@
             </div>
         </div>
 
+        <div class="panel-funnel" id="panelFunnel"></div>
+
         <!-- Analytics -->
         <div class="analytics-grid">
-            <div class="analytics-panel">
+            <div class="analytics-panel analytics-panel-donut">
                 <div class="panel-title"><i class="fa-solid fa-globe"></i> Presença digital</div>
                 <div id="donutPanel" class="donut-wrap"></div>
             </div>
-            <div class="analytics-panel">
+            <div class="analytics-panel analytics-panel-categories">
                 <div class="panel-title"><i class="fa-solid fa-chart-simple"></i> Por categoria</div>
                 <div id="categoryPanel" class="category-list"></div>
             </div>
@@ -226,41 +235,24 @@
 
     <!-- Saved Leads Section -->
     <div id="savedSection" style="display:none;">
-        <div class="saved-header">
-            <div class="saved-header-top">
-                <h2><i class="fa-solid fa-bookmark"></i> Leads Salvos <span class="saved-count" id="savedCount">(0)</span></h2>
-                <div class="saved-status-pills" id="statusPills"></div>
+        <div class="saved-toolbar-compact">
+            <div class="saved-search-field">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" id="savedSearchInput" placeholder="Buscar lead..." oninput="App.filterSavedLeads()">
             </div>
-
-            <div class="saved-toolbar">
-                <div class="saved-toolbar-left">
-                    <div class="saved-search-field">
-                        <i class="fa-solid fa-search"></i>
-                        <input type="text" id="savedSearchInput" placeholder="Buscar lead..." oninput="App.filterSavedLeads()">
-                    </div>
-                    <div class="saved-filter-group">
-                        <button class="saved-filter-btn active" data-filter="all" onclick="App.setSavedFilter('all')">Todos</button>
-                        <button class="saved-filter-btn" data-filter="Novo" onclick="App.setSavedFilter('Novo')">Novos</button>
-                        <button class="saved-filter-btn" data-filter="Contatado" onclick="App.setSavedFilter('Contatado')">Contatados</button>
-                        <button class="saved-filter-btn" data-filter="Em negociação" onclick="App.setSavedFilter('Em negociação')">Negociação</button>
-                        <button class="saved-filter-btn" data-filter="Cliente" onclick="App.setSavedFilter('Cliente')">Clientes</button>
-                        <button class="saved-filter-btn" data-filter="Descartado" onclick="App.setSavedFilter('Descartado')">Descartados</button>
-                    </div>
-                </div>
-                <div class="saved-sort">
-                    <i class="fa-solid fa-arrow-up-wide-short"></i>
-                    <select id="savedSort" onchange="App.sortSavedLeads()">
-                        <option value="recent">Mais recentes</option>
-                        <option value="oldest">Mais antigos</option>
-                        <option value="noSite">Sem site</option>
-                        <option value="noMaps">Sem Maps</option>
-                    </select>
-                </div>
+            <div class="saved-sort">
+                <i class="fa-solid fa-arrow-up-wide-short"></i>
+                <select id="savedSort" onchange="App.sortSavedLeads()">
+                    <option value="recent">Mais recentes</option>
+                    <option value="oldest">Mais antigos</option>
+                    <option value="noSite">Sem site</option>
+                    <option value="noMaps">Sem Maps</option>
+                </select>
             </div>
         </div>
-
+        <span class="saved-count" id="savedCount" hidden>(0)</span>
         <div class="saved-counters" id="savedCounters"></div>
-        <div id="savedLeadsList"></div>
+        <div id="savedLeadsList" class="saved-leads-list"></div>
 
         <div class="empty-state" id="savedEmpty">
             <i class="fa-solid fa-bookmark"></i>
@@ -278,10 +270,30 @@
 </div>
 
 <div class="modal-overlay" id="detailModal">
-    <div class="modal">
-        <h3><i class="fa-solid fa-store"></i> Detalhes do Estabelecimento</h3>
-        <div class="modal-grid" id="modalGrid"></div>
-        <button class="btn btn-secondary modal-close" id="modalClose">Fechar</button>
+    <div class="detail-modal">
+        <button type="button" class="detail-modal-close" id="detailModalClose" aria-label="Fechar">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div id="detailModalContent"></div>
+        <button type="button" class="btn btn-secondary detail-modal-footer-btn" id="modalClose">Fechar</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="confirmModal">
+    <div class="confirm-modal" id="confirmModalBox">
+        <div class="confirm-modal-glow" id="confirmModalGlow"></div>
+        <div class="confirm-modal-icon" id="confirmModalIcon">
+            <i class="fa-solid fa-trash-can"></i>
+        </div>
+        <h3 id="confirmModalTitle">Confirmar ação</h3>
+        <p id="confirmModalMessage">Tem certeza?</p>
+        <div class="confirm-modal-actions">
+            <button type="button" class="btn-confirm-cancel" id="confirmCancelBtn">Cancelar</button>
+            <button type="button" class="btn-confirm-delete" id="confirmActionBtn">
+                <i class="fa-solid fa-trash-can" id="confirmActionIcon"></i>
+                <span id="confirmActionLabel">Confirmar</span>
+            </button>
+        </div>
     </div>
 </div>
 

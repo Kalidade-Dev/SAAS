@@ -88,18 +88,17 @@ const SearchEngine = {
 
     async verifyDigitalPresence(results) {
         const verified = [];
-        const batchSize = 5;
+        const batchSize = 12;
 
         for (let i = 0; i < results.length; i += batchSize) {
             const batch = results.slice(i, i + batchSize);
             const checks = batch.map(async (est) => {
                 const checked = { ...est };
 
-                // Verificar website
                 if (est.website) {
                     try {
                         const controller = new AbortController();
-                        const timeout = setTimeout(() => controller.abort(), 5000);
+                        const timeout = setTimeout(() => controller.abort(), 2500);
                         const res = await fetch(est.website, {
                             method: 'HEAD',
                             mode: 'no-cors',
