@@ -667,6 +667,32 @@ const App = {
         if (card) {
             card.classList.toggle('selected', checked);
         }
+        this.updateDeleteSelectedBtn();
+    },
+
+    updateDeleteSelectedBtn() {
+        const btn = document.getElementById('deleteSelectedBtn');
+        if (btn) {
+            btn.style.display = this.selectedLeadIds.size > 0 ? 'inline-flex' : 'none';
+            btn.innerHTML = `<i class="fa-solid fa-trash"></i> Excluir selecionados (${this.selectedLeadIds.size})`;
+        }
+    },
+
+    async deleteSelectedLeads() {
+        const ids = Array.from(this.selectedLeadIds);
+        if (!ids.length) return;
+
+        const count = ids.length;
+        const message = `Tem certeza que deseja excluir <strong>${count} lead${count > 1 ? 's' : ''}</strong> selecionado${count > 1 ? 's' : ''}? Esta ação não pode ser desfeita.`;
+
+        this.openConfirmModal({
+            action: 'deleteSelected',
+            title: 'Excluir leads selecionados?',
+            message: message,
+            icon: 'fa-trash-can',
+            confirmLabel: `Excluir ${count}`,
+            variant: 'danger'
+        });
     },
 
     async renderSavedLeads() {
@@ -983,6 +1009,8 @@ const App = {
 
         if (action === 'delete' && deleteId) {
             await this.executeDeleteLead(deleteId);
+        } else if (action === 'deleteSelected') {
+            await this.executeDeleteSelectedLeads();
         } else if (action === 'clear') {
             this.clearResults();
         }
@@ -1006,6 +1034,43 @@ const App = {
             this.toast('Lead excluído', 'info');
         } catch (err) {
             this.toast('Erro ao excluir lead', 'warning');
+        }
+    },
+
+    async executeDeleteSelectedLeads() {
+        const ids = Array.from(this.selectedLeadIds);
+        if (!ids.length) return;
+
+        let deletedCount = 0;
+        const errors = [];
+
+        for (const id of ids) {
+            try {
+                await SupabaseClient.removeEstablishment(id);
+                deletedCount++;
+            } catch (err) {
+                errors.push(id);
+            }
+        }
+
+        // Remove dos arrays locais
+        this.savedLeads = this.savedLeads.filter(e => !ids.includes(e.id));
+        this.results = this.results.filter(e => !ids.includes(e.id));
+        this.filteredResults = this.filteredResults.filter(e => !ids.includes(e.id));
+
+        // Limpa a seleção
+        this.selectedLeadIds.clear();
+
+        // Atualiza a UI
+        this.renderSavedUI();
+        this.renderTable();
+        this.updateUI();
+        this.updateDeleteSelectedBtn();
+
+        if (errors.length) {
+            this.toast(`${deletedCount} leads excluídos. ${errors.length} falharam.`, 'warning');
+        } else {
+            this.toast(`${deletedCount} lead${deletedCount > 1 ? 's' : ''} excluído${deletedCount > 1 ? 's' : ''} com sucesso!`, 'success');
         }
     },
 
