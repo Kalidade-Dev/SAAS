@@ -297,7 +297,17 @@ const App = {
     },
 
     async logout() {
-        if (!confirm('Deseja sair da sua conta?')) return;
+        this.openConfirmModal({
+            action: 'logout',
+            title: 'Sair da conta?',
+            message: 'Tem certeza que deseja encerrar sua sessão? Você precisará fazer login novamente para acessar o painel.',
+            icon: 'fa-right-from-bracket',
+            confirmLabel: 'Sair',
+            variant: 'danger'
+        });
+    },
+
+    async executeLogout() {
         try {
             if (SupabaseClient.ready && SupabaseClient.client) {
                 await SupabaseClient.client.auth.signOut();
@@ -1023,6 +1033,8 @@ const App = {
             await this.executeDeleteSelectedLeads();
         } else if (action === 'clear') {
             this.clearResults();
+        } else if (action === 'logout') {
+            await this.executeLogout();
         }
     },
 
