@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Planos e Preços | SaaS Maps</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="assets/css/legal.css" />
+    <link rel="stylesheet" href="assets/css/transitions.css" />
+</head>
+<body class="pricing-page">
+
+    <header class="pricing-header fade-in">
+        <h1>Planos e Preços</h1>
+        <p>Escolha o plano ideal para o seu negócio. Cancele quando quiser.</p>
+    </header>
+
+    <div class="pricing-toggle fade-in">
+        <label class="active" id="monthlyLabel" onclick="setBilling('monthly')">Mensal</label>
+        <div class="toggle-switch" id="billingToggle" onclick="toggleBilling()"></div>
+        <label id="yearlyLabel" onclick="setBilling('yearly')">Anual <span style="color:#22c55e;font-size:.8rem;">(2 meses grátis)</span></label>
+    </div>
+
+    <div class="pricing-grid stagger-children">
+
+        <!-- Basic -->
+        <div class="pricing-card">
+            <div class="plan-name">Basic</div>
+            <div class="plan-price" id="priceBasic">Grátis</div>
+            <div class="plan-period" id="periodBasic">Sempre</div>
+            <ul class="plan-features">
+                <li><i class="fa-solid fa-check"></i> Até 100 leads/mês</li>
+                <li><i class="fa-solid fa-check"></i> 5 buscas/dia</li>
+                <li><i class="fa-solid fa-check"></i> Busca OpenStreetMap</li>
+                <li><i class="fa-solid fa-check"></i> Exportação CSV</li>
+                <li class="missing"><i class="fa-solid fa-xmark"></i> IA Scoring</li>
+                <li class="missing"><i class="fa-solid fa-xmark"></i> Google Places</li>
+                <li class="missing"><i class="fa-solid fa-xmark"></i> Suporte prioritário</li>
+            </ul>
+            <button class="plan-btn" onclick="window.location.href='Register/register.html'">Começar grátis</button>
+        </div>
+
+        <!-- Pro (Featured) -->
+        <div class="pricing-card featured">
+            <div class="plan-name">Pro</div>
+            <div class="plan-price" id="pricePro">R$ 49</div>
+            <div class="plan-period" id="periodPro">/mês</div>
+            <ul class="plan-features">
+                <li><i class="fa-solid fa-check"></i> Até 1.000 leads/mês</li>
+                <li><i class="fa-solid fa-check"></i> 50 buscas/dia</li>
+                <li><i class="fa-solid fa-check"></i> OpenStreetMap + Google Places</li>
+                <li><i class="fa-solid fa-check"></i> Exportação CSV</li>
+                <li><i class="fa-solid fa-check"></i> IA Scoring de leads</li>
+                <li class="missing"><i class="fa-solid fa-xmark"></i> API pública</li>
+                <li class="missing"><i class="fa-solid fa-xmark"></i> Suporte 24h</li>
+            </ul>
+            <button class="plan-btn" onclick="window.location.href='Register/register.html'">Assinar Pro</button>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="pricing-card">
+            <div class="plan-name">Enterprise</div>
+            <div class="plan-price" id="priceEnterprise">R$ 199</div>
+            <div class="plan-period" id="periodEnterprise">/mês</div>
+            <ul class="plan-features">
+                <li><i class="fa-solid fa-check"></i> Leads ilimitados</li>
+                <li><i class="fa-solid fa-check"></i> 500 buscas/dia</li>
+                <li><i class="fa-solid fa-check"></i> Todas as fontes de dados</li>
+                <li><i class="fa-solid fa-check"></i> Exportação CSV + PDF</li>
+                <li><i class="fa-solid fa-check"></i> IA Scoring avançado</li>
+                <li><i class="fa-solid fa-check"></i> API pública ilimitada</li>
+                <li><i class="fa-solid fa-check"></i> Suporte prioritário 24h</li>
+            </ul>
+            <button class="plan-btn" onclick="window.location.href='Register/register.html'">Falar conosco</button>
+        </div>
+
+    </div>
+
+    <footer style="text-align:center;padding:40px 20px;color:#666;font-size:.85rem;">
+        <p style="margin-bottom:12px;">
+            <a href="termos.html" style="color:#8ec5fc;text-decoration:none;margin:0 10px;">Termos de Serviço</a>
+            <a href="privacidade.html" style="color:#8ec5fc;text-decoration:none;margin:0 10px;">Privacidade</a>
+            <a href="faq.html" style="color:#8ec5fc;text-decoration:none;margin:0 10px;">FAQ</a>
+            <a href="Login/login.html" style="color:#8ec5fc;text-decoration:none;margin:0 10px;">Login</a>
+        </p>
+        <p>&copy; 2025 SaaS Maps. Todos os direitos reservados.</p>
+    </footer>
+
+    <script>
+    let billing = 'monthly';
+
+    function toggleBilling() {
+        setBilling(billing === 'monthly' ? 'yearly' : 'monthly');
+    }
+
+    function setBilling(type) {
+        billing = type;
+        const toggle = document.getElementById('billingToggle');
+        const monthlyLabel = document.getElementById('monthlyLabel');
+        const yearlyLabel = document.getElementById('yearlyLabel');
+
+        toggle.classList.toggle('active', type === 'yearly');
+        monthlyLabel.classList.toggle('active', type === 'monthly');
+        yearlyLabel.classList.toggle('active', type === 'yearly');
+
+        const prices = {
+            monthly: { basic: 'Grátis', pro: 'R$ 49', enterprise: 'R$ 199', periodPro: '/mês', periodEnterprise: '/mês', periodBasic: 'Sempre' },
+            yearly: { basic: 'Grátis', pro: 'R$ 490', enterprise: 'R$ 1.990', periodPro: '/ano', periodEnterprise: '/ano', periodBasic: 'Sempre' }
+        };
+
+        document.getElementById('priceBasic').textContent = prices[type].basic;
+        document.getElementById('pricePro').textContent = prices[type].pro;
+        document.getElementById('priceEnterprise').textContent = prices[type].enterprise;
+        document.getElementById('periodBasic').textContent = prices[type].periodBasic;
+        document.getElementById('periodPro').textContent = prices[type].periodPro;
+        document.getElementById('periodEnterprise').textContent = prices[type].periodEnterprise;
+    }
+    </script>
+
+</body>
+</html>

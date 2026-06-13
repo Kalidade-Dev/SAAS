@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FAQ | SaaS Maps</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="assets/css/legal.css" />
+    <link rel="stylesheet" href="assets/css/transitions.css" />
+    <style>
+        .faq-header-icon { color: #a5b4fc; margin-right: 10px; }
+    </style>
+</head>
+<body class="legal-page">
+
+    <div class="legal-container fade-in">
+
+        <a href="Dashboard/dashboard.html" class="legal-back"><i class="fas fa-arrow-left"></i> Voltar para o Dashboard</a>
+
+        <h1><i class="fas fa-question-circle faq-header-icon"></i> FAQ - Perguntas Frequentes</h1>
+        <p class="last-updated">Última atualização: 22 de junho de 2025</p>
+
+        <!-- 1 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Como funciona a busca de estabelecimentos?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                O SaaS Maps utiliza o <strong>OpenStreetMap (Nominatim + Overpass)</strong> como motor de busca principal, permitindo encontrar estabelecimentos comerciais em qualquer cidade do Brasil sem custos. Quando disponível, também consulta o <strong>Google Places API</strong> para enriquecer os resultados com dados adicionais. Basta selecionar o estado, a cidade e a categoria desejada para iniciar a busca.
+            </div>
+        </div>
+
+        <!-- 2 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Quais são os planos disponíveis?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                Oferecemos três planos: <strong>Basic</strong> (grátis, até 100 leads/mês), <strong>Pro</strong> (R$49/mês, até 1.000 leads com IA e Google Places) e <strong>Enterprise</strong> (R$199/mês, leads ilimitados com suporte prioritário). Todos os planos incluem busca via OpenStreetMap e exportação CSV. Consulte nossa <a href="pricing.html">página de preços</a> para detalhes completos.
+            </div>
+        </div>
+
+        <!-- 3 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Existe limite de leads que posso salvar?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                Sim, cada plano tem um limite mensal: 100 leads no Basic, 1.000 no Pro e ilimitado no Enterprise. Os limites são resetados no primeiro dia de cada mês. Você pode acompanhar seu uso atual no painel do dashboard. Se atingir o limite, poderá fazer upgrade do plano para continuar salvando leads.
+            </div>
+        </div>
+
+        <!-- 4 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                O que é OpenStreetMap e como ele é usado?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                O <strong>OpenStreetMap (OSM)</strong> é um mapa colaborativo e gratuito, similar ao Google Maps, mas mantido por uma comunidade global de voluntários. Usamos os serviços Nominatim (para geolocalização) e Overpass (para consulta de estabelecimentos) para buscar dados atualizados sem custos de API. Isso nos permite oferecer o plano Basic gratuito.
+            </div>
+        </div>
+
+        <!-- 5 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Preciso de uma chave do Google Places?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                Não é obrigatório. O sistema funciona 100% com OpenStreetMap. No entanto, se você configurar uma chave do Google Places API no arquivo <code>config.js</code>, os resultados serão enriquecidos com dados adicionais como avaliações, horários e fotos. A chave pode ser obtida gratuitamente no Google Cloud Console.
+            </div>
+        </div>
+
+        <!-- 6 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Como salvar um lead?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                Após realizar uma busca, os resultados aparecem em uma tabela. Clique no botão <strong>"Salvar"</strong> na coluna à direita para adicionar o estabelecimento à sua lista de leads salvos. Você também pode gerenciar os status (Novo, Contatado, Em negociação, Cliente, Descartado) e adicionar notas nos leads salvos.
+            </div>
+        </div>
+
+        <!-- 7 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Como exportar dados para CSV?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                Após realizar uma busca, clique no botão <strong>"Exportar CSV"</strong> localizado abaixo da tabela de resultados. O arquivo será baixado automaticamente com todos os dados dos estabelecimentos encontrados, incluindo nome, telefone, website, endereço e status. A exportação inclui todos os resultados filtrados no momento.
+            </div>
+        </div>
+
+        <!-- 8 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Como entro em contato com o suporte?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                Usuários dos planos Pro e Enterprise têm suporte prioritário via chat direto no dashboard. Usuários do plano Basic podem enviar dúvidas através dos canais disponíveis no repositório oficial do projeto. Para questões urgentes, recomendamos abrir uma issue no <a href="https://github.com/Kalidade-Dev/SAAS.git" target="_blank">GitHub do projeto</a>.
+            </div>
+        </div>
+
+        <!-- 9 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Os dados são atualizados com que frequência?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                Os dados do OpenStreetMap são atualizados continuamente pela comunidade. Quando você realiza uma busca, os dados são obtidos em tempo real da fonte. O cache de cidades do IBGE é armazenado localmente para agilizar as buscas, mas pode ser atualizado manualmente limpando o cache do navegador.
+            </div>
+        </div>
+
+        <!-- 10 -->
+        <div class="faq-item">
+            <button class="faq-question" onclick="toggleFaq(this)">
+                Posso cancelar minha assinatura a qualquer momento?
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="faq-answer">
+                Sim! Você pode cancelar sua assinatura quando quiser, sem taxas de cancelamento. Ao cancelar, você mantém acesso aos recursos do plano até o final do período já pago. Após isso, sua conta será revertida para o plano Basic gratuito. Seus leads salvos nunca serão perdidos.
+            </div>
+        </div>
+
+        <footer style="text-align:center;padding:30px 0 10px;color:#666;font-size:.85rem;border-top:1px solid rgba(255,255,255,.06);margin-top:30px;">
+            <p style="margin-bottom:12px;">
+                <a href="termos.html" style="color:#8ec5fc;text-decoration:none;margin:0 10px;">Termos de Serviço</a>
+                <a href="privacidade.html" style="color:#8ec5fc;text-decoration:none;margin:0 10px;">Privacidade</a>
+                <a href="pricing.html" style="color:#8ec5fc;text-decoration:none;margin:0 10px;">Preços</a>
+                <a href="Login/login.html" style="color:#8ec5fc;text-decoration:none;margin:0 10px;">Login</a>
+            </p>
+            <p>&copy; 2025 SaaS Maps. Todos os direitos reservados.</p>
+        </footer>
+    </div>
+
+    <script>
+    function toggleFaq(btn) {
+        const item = btn.parentElement;
+        const isOpen = item.classList.contains('open');
+        // Fecha todos
+        document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+        // Abre o clicado se estava fechado
+        if (!isOpen) item.classList.add('open');
+    }
+    </script>
+
+</body>
+</html>

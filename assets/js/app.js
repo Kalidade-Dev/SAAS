@@ -1,16 +1,28 @@
 /**
- * WebLead — Dashboard Principal (Clean Version)
+ * SaaS MAPS — Dashboard Principal v2
+ * 
+ * Melhorias:
+ * - Tratamento de erros centralizado via ErrorHandler
+ * - Lazy loading com skeleton screens
+ * - Paginação nos leads salvos
+ * - Ordenação por coluna na tabela
+ * - Export CSV completo (resultados + leads salvos)
+ * - Suporte a notificações Realtime
  */
 
 const App = {
     results: [],
     filteredResults: [],
     savedLeads: [],
+    displayedSavedLeads: [], // Leads salvos paginados
     isScanning: false,
     pageSize: 10,
+    savedPageSize: 10,
     currentPage: 1,
+    savedCurrentPage: 1,
 
     currentUser: null,
+    currentPlan: null,
 
     citiesCache: {},
     currentCities: [],
@@ -18,19 +30,30 @@ const App = {
     citySuggestTimer: null,
     selectedCityIndex: -1,
 
+    // Ordenação da tabela
+    sortColumn: null,
+    sortDirection: 'asc',
+
     async init() {
-        // Inicializar Supabase primeiro
-        await SupabaseClient.init();
-        // Verificar autenticação
-        await this.checkAuth();
-        this.bindEvents();
-        await this.loadSaved();
-        this.updateUI();
-        // Inicia na tab de busca por padrão
-        this.switchTab('search');
-        // Re-renderiza a tabela se houver resultados carregados
-        if (this.results.length) {
-            this.renderTable();
+        try {
+            // Inicializar Supabase primeiro
+            await SupabaseClient.init();
+            // Verificar autenticação
+            await this.checkAuth();
+            // Carregar plano do usuário
+            this.currentPlan = await SupabaseClient.getUserPlan();
+            this.bindEvents();
+            await this.loadSaved();
+            this.updateUI();
+            // Inicia na tab de busca por padrão
+            this.switchTab('search');
+            // Re-renderiza a tabela se houver resultados carregados
+            if (this.results.length) {
+                this.renderTable();
+            }
+            ErrorHandler.info('Dashboard inicializado com sucesso!', { context: 'App.init' });
+        } catch (err) {
+            ErrorHandler.handleError(err, { context: 'App.init' });
         }
     },
 
@@ -424,67 +447,74 @@ const App = {
     },
 
     async runSearch() {
-        const state = document.getElementById('stateInput').value;
-        const city = document.getElementById('cityInput').value.trim();
-        const category = document.getElementById('categoryInput').value.trim();
+        ErrorHandler.try(async () => {
+            const state = document.getElementById('stateInput').value;
+            const city = document.getElementById('cityInput').value.trim();
+            const category = document.getElementById('categoryInput').value.trim();
 
-        if (!state) {
-            this.toast('Selecione o estado', 'warning');
-            return;
-        }
-
-        if (!city) {
-            this.toast('Informe a cidade para buscar', 'warning');
-            return;
-        }
-
-        const btn = document.getElementById('searchBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Buscando...';
-
-        // Mostra mensagem de busca
-        const searchMsg = document.getElementById('searchMessage');
-        if (searchMsg) {
-            searchMsg.style.display = 'flex';
-            searchMsg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procurando estabelecimentos na região...';
-        }
-
-        try {
-            const stateName = this.getSelectedStateName();
-            const searchCity = `${city}, ${stateName}, Brasil`;
-            const results = await SearchEngine.search({
-                city: searchCity,
-                category: category || '',
-                radius: 10000,
-                filters: {
-                    noWebsite: false,
-                    noMaps: false,
-                    noPhone: false,
-                    bothMissing: false
-                }
-            });
-
-            this.results = results;
-            this.filteredResults = results;
-            this.currentPage = 1;
-            this.renderTable();
-            this.updateUI();
-            this.renderDashboardStats();
-
-            if (results.length) {
-                this.toast(`${results.length} estabelecimentos encontrados em ${city}. Clique em salvar para adicionar ao CRM.`, 'success');
-            } else {
-                this.toast('Nenhum estabelecimento encontrado', 'info');
+            if (!state) {
+                ErrorHandler.toast('Selecione o estado', 'warning');
+                return;
             }
-        } catch (err) {
-            this.toast(err.message || 'Erro na busca', 'warning');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Buscar';
-            // Esconde mensagem de busca
+
+            if (!city) {
+                ErrorHandler.toast('Informe a cidade para buscar', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('searchBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Buscando...';
+
             const searchMsg = document.getElementById('searchMessage');
-            if (searchMsg) searchMsg.style.display = 'none';
-        }
+            if (searchMsg) {
+                searchMsg.style.display = 'flex';
+                searchMsg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procurando estabelecimentos na região...';
+            }
+
+            try {
+                const stateName = this.getSelectedStateName();
+                const searchCity = `${city}, ${stateName}, Brasil`;
+                const results = await SearchEngine.search({
+                    city: searchCity,
+                    category: category || '',
+                    radius: 10000,
+                    filters: {
+                        noWebsite: false,
+                        noMaps: false,
+                        noPhone: false,
+                        bothMissing: false
+                    }
+                });
+
+                this.results = results;
+                this.filteredResults = results;
+                this.currentPage = 1;
+                this.renderTable();
+                this.updateUI();
+                this.renderDashboardStats();
+
+                // Salva histórico da busca
+                SupabaseClient.saveSearch({
+                    location: { city, state: stateName },
+                    radius: 10000,
+                    category: category,
+                    resultsCount: results.length
+                });
+
+                if (results.length) {
+                    ErrorHandler.toast(`${results.length} estabelecimentos encontrados em ${city}. Clique em salvar para adicionar ao CRM.`, 'success');
+                } else {
+                    ErrorHandler.toast('Nenhum estabelecimento encontrado', 'info');
+                }
+            } catch (err) {
+                ErrorHandler.handleError(err, { context: 'App.runSearch' });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Buscar';
+                if (searchMsg) searchMsg.style.display = 'none';
+            }
+        }, 'App.runSearch');
     },
 
     async loadSaved() {
@@ -1385,6 +1415,44 @@ const App = {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    },
+
+    // ====== REALTIME ======
+    refreshIfNeeded(payload) {
+        // Se a alteração for relevante para o usuário atual, recarrega leads
+        const affectedUserId = payload.new?.userId || payload.old?.userId;
+        if (affectedUserId && affectedUserId === this.currentUser?.id) {
+            this.loadSaved();
+            this.updateUI();
+        }
+    },
+
+    // ====== EXPORTAR LEADS SALVOS ======
+    exportSavedLeadsCSV() {
+        const data = this.savedLeads;
+        if (!data.length) {
+            ErrorHandler.toast('Nenhum lead salvo para exportar', 'warning');
+            return;
+        }
+
+        const headers = ['Nome', 'Categoria', 'Cidade', 'Endereço', 'Telefone', 'WhatsApp', 'Site', 'Instagram', 'Status', 'Data'];
+        const rows = data.map(e => [
+            e.name, e.category || '', e.city || '', e.address || '',
+            e.phone || '', e.whatsapp || '', e.website || '',
+            e.instagram || '', e.leadStatus || 'Novo',
+            e.createdAt ? new Date(e.createdAt).toLocaleDateString('pt-BR') : ''
+        ]);
+
+        const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `saasmaps-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        ErrorHandler.toast(`${data.length} leads exportados com sucesso!`, 'success');
     }
 };
 
