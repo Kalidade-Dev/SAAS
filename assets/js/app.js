@@ -655,6 +655,19 @@ const App = {
     pendingDeleteId: null,
     confirmAction: null,
     leadStatuses: ['Novo', 'Contatado', 'Em negociação', 'Cliente', 'Descartado'],
+    selectedLeadIds: new Set(),
+
+    toggleSelectLead(id, checked) {
+        if (checked) {
+            this.selectedLeadIds.add(id);
+        } else {
+            this.selectedLeadIds.delete(id);
+        }
+        const card = document.querySelector(`.saved-lead-card[data-id="${id}"]`);
+        if (card) {
+            card.classList.toggle('selected', checked);
+        }
+    },
 
     async renderSavedLeads() {
         this.savedLeads = await SupabaseClient.getEstablishments();
@@ -809,9 +822,15 @@ const App = {
             </button>
         `).join('');
 
+        const isSelected = this.selectedLeadIds.has(id);
+
         return `
-            <div class="saved-lead-card" data-id="${id}">
+            <div class="saved-lead-card ${isSelected ? 'selected' : ''}" data-id="${id}">
                 <div class="saved-lead-main">
+                    <label class="saved-lead-checkbox" onclick="event.stopPropagation()">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="App.toggleSelectLead('${id}', this.checked)">
+                        <span class="saved-lead-checkbox-mark"></span>
+                    </label>
                     <div class="saved-lead-icon">
                         <i class="fa-solid fa-store"></i>
                     </div>
@@ -839,6 +858,9 @@ const App = {
                         </button>
                         <div class="status-dropdown-menu">${statusOptions}</div>
                     </div>
+                    <button type="button" class="btn-icon btn-icon-view" onclick="App.showDetail('${id}')" title="Ver detalhes">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
                     <button type="button" class="btn-delete-lead" onclick="App.showDeleteConfirm('${id}')" title="Excluir">
                         <i class="fa-solid fa-trash"></i>
                     </button>
