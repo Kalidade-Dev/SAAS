@@ -1300,43 +1300,6 @@ const App = {
                         ? 'Oportunidade — sem site, mas presente no Maps.'
                         : 'Alto potencial — sem presença digital.'}</span>
             </div>
-            ${leadScore > 0 ? `
-            <div class="detail-modal-score" style="margin-top:16px;padding:16px;background:rgba(255,255,255,0.03);border-radius:12px;border:1px solid rgba(255,255,255,0.06);">
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-                    <div style="width:48px;height:48px;border-radius:50%;background:${scoreColor}20;display:flex;align-items:center;justify-content:center;">
-                        <span style="font-size:1.1rem;font-weight:700;color:${scoreColor}">${leadScore}</span>
-                    </div>
-                    <div>
-                        <div style="font-weight:600;font-size:0.95rem;">Score de Oportunidade</div>
-                        <div style="font-size:0.8rem;color:var(--text-muted);">Prioridade: ${scoreLabel}</div>
-                    </div>
-                </div>
-                <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
-                    <div style="height:100%;width:${leadScore}%;background:${scoreColor};border-radius:3px;transition:width 0.5s;"></div>
-                </div>
-            </div>` : ''}
-            ${presenceChannels.length > 0 || presenceMissing.length > 0 ? `
-            <div class="detail-modal-presence" style="margin-top:12px;padding:16px;background:rgba(255,255,255,0.03);border-radius:12px;border:1px solid rgba(255,255,255,0.06);">
-                <div style="font-weight:600;font-size:0.95rem;margin-bottom:10px;">
-                    <i class="fa-solid fa-chart-bar"></i> Presença Digital
-                    <span style="font-size:0.75rem;color:${presenceColor};margin-left:8px;">${presenceLevel.toUpperCase()}</span>
-                </div>
-                ${presenceChannels.length > 0 ? `
-                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
-                    ${presenceChannels.map(ch => `<span style="background:${presenceColor}20;color:${presenceColor};padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:500;">✓ ${ch}</span>`).join('')}
-                </div>` : ''}
-                ${presenceMissing.length > 0 ? `
-                <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                    ${presenceMissing.map(ch => `<span style="background:rgba(239,68,68,0.1);color:#ef4444;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:500;">✗ ${ch}</span>`).join('')}
-                </div>` : ''}
-            </div>` : ''}
-            ${notes ? `
-            <div class="detail-modal-notes" style="margin-top:12px;padding:16px;background:rgba(99,102,241,0.05);border-radius:12px;border:1px solid rgba(99,102,241,0.1);">
-                <div style="font-weight:600;font-size:0.95rem;margin-bottom:8px;">
-                    <i class="fa-solid fa-robot"></i> Análise IA
-                </div>
-                <div style="font-size:0.85rem;line-height:1.6;color:var(--text-muted);white-space:pre-line;">${this.escape(notes)}</div>
-            </div>` : ''}
         `;
 
         document.getElementById('detailModal').classList.add('visible');
