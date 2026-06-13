@@ -430,7 +430,14 @@ const App = {
 
         const btn = document.getElementById('searchBtn');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Buscando...';
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Buscando...';
+
+        // Mostra mensagem de busca
+        const searchMsg = document.getElementById('searchMessage');
+        if (searchMsg) {
+            searchMsg.style.display = 'flex';
+            searchMsg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procurando estabelecimentos na região...';
+        }
 
         try {
             const stateName = this.getSelectedStateName();
@@ -464,6 +471,9 @@ const App = {
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Buscar';
+            // Esconde mensagem de busca
+            const searchMsg = document.getElementById('searchMessage');
+            if (searchMsg) searchMsg.style.display = 'none';
         }
     },
 
