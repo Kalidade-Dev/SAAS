@@ -63,22 +63,14 @@ Se não souber, use null.`;
     },
 
     enrichMock(establishment) {
-        const needsPhone = !establishment.phone;
-        const needsAddress = !establishment.address || establishment.address.length < 5;
-
-        const socials = ['instagram', 'facebook', 'whatsapp'];
-        const foundSocial = Math.random() > 0.6 ? socials[Math.floor(Math.random() * socials.length)] : null;
-
         const enrichment = {
-            phone: needsPhone ? SearchEngine.generatePhone() : establishment.phone,
-            address: needsAddress
-                ? `${['Rua', 'Av.'][Math.floor(Math.random() * 2)]} ${establishment.name.split(' ')[0]}, ${Math.floor(Math.random() * 900) + 100}`
-                : establishment.address,
-            instagram: foundSocial === 'instagram' ? `@${establishment.name.toLowerCase().replace(/\s/g, '')}` : null,
-            facebook: foundSocial === 'facebook' ? establishment.name : null,
-            whatsapp: foundSocial === 'whatsapp' ? SearchEngine.generatePhone() : null,
+            phone: establishment.phone,
+            address: establishment.address,
+            instagram: establishment.instagram || null,
+            facebook: establishment.facebook || null,
+            whatsapp: establishment.whatsapp || null,
             hasWebsite: establishment.hasWebsite,
-            hasGoogleMaps: establishment.hasMapsLocation,
+            hasMapsLocation: establishment.hasMapsLocation,
             leadScore: this.calculateLeadScore(establishment),
             notes: this.generateNote(establishment),
             aiEnriched: true,

@@ -292,26 +292,110 @@ body::after{
 </div>
 
 <script src="../assets/js/config.js"></script>
+<!-- Supabase JS SDK v2 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-function handleGoogleRegister(response) {
-    const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    sessionStorage.setItem('saas_user', payload.name || payload.email.split('@')[0]);
-    sessionStorage.setItem('saas_email', payload.email);
-    window.location.href = '../Dashboard/dashboard.html';
+let supabaseClient = null;
+
+// Inicializar Supabase com tratamento de erro
+if (CONFIG.supabase.url && CONFIG.supabase.anonKey) {
+    try {
+        supabaseClient = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
+    } catch (e) {
+        console.warn('Erro ao inicializar Supabase:', e);
+        supabaseClient = null;
+    }
 }
 
-document.getElementById('registerForm').addEventListener('submit', function(e) {
+// Verificar se já está logado
+window.addEventListener('load', async function() {
+    if (supabaseClient) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                window.location.href = '../Dashboard/dashboard.html';
+                return;
+            }
+        } catch (e) {
+            console.warn('Erro ao verificar sessão:', e);
+        }
+    }
+    initGoogle();
+});
+
+// Registro com Google via Supabase
+function handleGoogleRegister(response) {
+    if (supabaseClient) {
+        supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin + '/Dashboard/dashboard.html'
+            }
+        });
+    } else {
+        const payload = JSON.parse(atob(response.credential.split('.')[1]));
+        sessionStorage.setItem('saas_user', payload.name || payload.email.split('@')[0]);
+        sessionStorage.setItem('saas_email', payload.email);
+        window.location.href = '../Dashboard/dashboard.html';
+    }
+}
+
+// Registro com email/senha
+document.getElementById('registerForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const name = document.getElementById('name').value.trim();
     const email = document.getElementById('email').value.trim();
-    if (!name) return;
-    sessionStorage.setItem('saas_user', name);
-    if (email) sessionStorage.setItem('saas_email', email);
-    window.location.href = '../Dashboard/dashboard.html';
+    const password = document.getElementById('password').value;
+    const btn = this.querySelector('.login-btn');
+
+    if (!name || !email || !password) {
+        alert('Preencha todos os campos');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Criando conta...';
+
+    try {
+        if (supabaseClient) {
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: { name: name }
+                }
+            });
+            if (error) throw error;
+
+            // Salvar dados do usuário
+            sessionStorage.setItem('saas_user', name);
+            sessionStorage.setItem('saas_email', email);
+            sessionStorage.setItem('saas_user_id', data.user?.id);
+
+            // Se precisa confirmar email
+            if (data.user && !data.session) {
+                alert('Conta criada! Verifique seu e-mail para confirmar o cadastro.');
+                window.location.href = '../Login/login.html';
+            } else {
+                window.location.href = '../Dashboard/dashboard.html';
+            }
+        } else {
+            // Sem Supabase, login direto
+            sessionStorage.setItem('saas_user', name);
+            sessionStorage.setItem('saas_email', email);
+            window.location.href = '../Dashboard/dashboard.html';
+        }
+    } catch (err) {
+        alert('Erro ao criar conta: ' + (err.message || 'Tente novamente'));
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Criar conta';
+    }
 });
 
-window.addEventListener('load', function() {
+// Botão Google
+function initGoogle() {
     if (!CONFIG.googleAuth?.clientId) return;
 
     const init = () => {
@@ -329,8 +413,11 @@ window.addEventListener('load', function() {
     };
 
     if (window.google?.accounts?.id) init();
-    else document.querySelector('script[src*="gsi/client"]').addEventListener('load', init);
-});
+    else {
+        const script = document.querySelector('script[src*="gsi/client"]');
+        if (script) script.addEventListener('load', init);
+    }
+}
 </script>
 
 </body>

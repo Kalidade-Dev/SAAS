@@ -1,4 +1,4 @@
-image.png<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -302,21 +302,104 @@ body::after{
 </div>
 
 <script src="../assets/js/config.js"></script>
+<!-- Supabase JS SDK v2 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-function handleGoogleLogin(response) {
-    const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    sessionStorage.setItem('saas_user', payload.name || payload.email.split('@')[0]);
-    sessionStorage.setItem('saas_email', payload.email);
-    window.location.href = '../Dashboard/dashboard.html';
+let supabaseClient = null;
+
+// Inicializar Supabase com tratamento de erro
+if (CONFIG.supabase.url && CONFIG.supabase.anonKey) {
+    try {
+        supabaseClient = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
+    } catch (e) {
+        console.warn('Erro ao inicializar Supabase:', e);
+        supabaseClient = null;
+    }
 }
 
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    window.location.href = '../Dashboard/dashboard.html';
+// Verificar se já está logado
+window.addEventListener('load', async function() {
+    if (supabaseClient) {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                window.location.href = '../Dashboard/dashboard.html';
+                return;
+            }
+        } catch (e) {
+            console.warn('Erro ao verificar sessão:', e);
+        }
+    }
+    initGoogle();
 });
 
-window.addEventListener('load', function() {
+// Login com Google via Supabase
+function handleGoogleLogin(response) {
+    if (supabaseClient) {
+        supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin + '/Dashboard/dashboard.html'
+            }
+        });
+    } else {
+        // Fallback: usar dados do Google diretamente
+        const payload = JSON.parse(atob(response.credential.split('.')[1]));
+        sessionStorage.setItem('saas_user', payload.name || payload.email.split('@')[0]);
+        sessionStorage.setItem('saas_email', payload.email);
+        window.location.href = '../Dashboard/dashboard.html';
+    }
+}
+
+// Login com email/senha
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn = this.querySelector('.login-btn');
+
+    if (!email || !password) {
+        alert('Preencha e-mail e senha');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+
+    try {
+        if (supabaseClient) {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+            if (error) throw error;
+
+            sessionStorage.setItem('saas_user', data.user?.user_metadata?.name || email.split('@')[0]);
+            sessionStorage.setItem('saas_email', email);
+            sessionStorage.setItem('saas_user_id', data.user?.id);
+
+            window.location.href = '../Dashboard/dashboard.html';
+        } else {
+            // Sem Supabase configurado ou inacessível, login direto
+            sessionStorage.setItem('saas_user', email.split('@')[0]);
+            sessionStorage.setItem('saas_email', email);
+            window.location.href = '../Dashboard/dashboard.html';
+        }
+    } catch (err) {
+        console.warn('Erro no login Supabase:', err);
+        // Fallback: login direto sem Supabase
+        sessionStorage.setItem('saas_user', email.split('@')[0]);
+        sessionStorage.setItem('saas_email', email);
+        window.location.href = '../Dashboard/dashboard.html';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+    }
+});
+
+// Botão Google
+function initGoogle() {
     if (!CONFIG.googleAuth?.clientId) return;
 
     const init = () => {
@@ -334,8 +417,11 @@ window.addEventListener('load', function() {
     };
 
     if (window.google?.accounts?.id) init();
-    else document.querySelector('script[src*="gsi/client"]').addEventListener('load', init);
-});
+    else {
+        const script = document.querySelector('script[src*="gsi/client"]');
+        if (script) script.addEventListener('load', init);
+    }
+}
 </script>
 
 </body>

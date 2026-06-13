@@ -80,7 +80,71 @@ const SearchEngine = {
             throw new Error(`Nenhum estabelecimento encontrado em ${location.city}. Tente outra categoria ou aumente o raio.`);
         }
 
+        // Verificar presença digital de forma precisa
+        results = await this.verifyDigitalPresence(results);
+
         return this.applyFilters(results, filters);
+    },
+
+    async verifyDigitalPresence(results) {
+        const verified = [];
+        const batchSize = 5;
+
+        for (let i = 0; i < results.length; i += batchSize) {
+            const batch = results.slice(i, i + batchSize);
+            const checks = batch.map(async (est) => {
+                const checked = { ...est };
+
+                // Verificar website
+                if (est.website) {
+                    try {
+                        const controller = new AbortController();
+                        const timeout = setTimeout(() => controller.abort(), 5000);
+                        const res = await fetch(est.website, {
+                            method: 'HEAD',
+                            mode: 'no-cors',
+                            signal: controller.signal
+                        });
+                        clearTimeout(timeout);
+                        // no-cors sempre retorna opaque, mas se não deu error o site existe
+                        checked.hasWebsite = true;
+                    } catch {
+                        checked.hasWebsite = false;
+                        checked.website = null;
+                    }
+                }
+
+                // Validar telefone brasileiro
+                if (est.phone) {
+                    let digits = est.phone.replace(/\D/g, '');
+                    // Remover código de país +55 se presente
+                    if (digits.startsWith('55') && digits.length > 11) {
+                        digits = digits.slice(2);
+                    }
+                    // Telefone válido: 10 ou 11 dígitos, começa com DDD válido
+                    const ddd = parseInt(digits.slice(0, 2));
+                    const validDDD = digits.length >= 2 && ddd >= 11 && ddd <= 99;
+                    const validLength = digits.length === 10 || digits.length === 11;
+                    checked.hasPhone = validDDD && validLength;
+                    if (!checked.hasPhone) {
+                        // Mantém o telefone mesmo que formato não seja padrão
+                        checked.phone = est.phone;
+                    }
+                } else {
+                    checked.hasPhone = false;
+                }
+
+                // Verificar se tem endereço real
+                checked.hasAddress = !!(est.address && est.address.length > 5);
+
+                return checked;
+            });
+
+            const batchResults = await Promise.all(checks);
+            verified.push(...batchResults);
+        }
+
+        return verified;
     },
 
     async nominatimFetch(path) {
@@ -122,16 +186,19 @@ const SearchEngine = {
     },
 
     async searchOpenStreetMap(location, category, radius) {
-        let results = await this.searchNominatimPlaces(location, category);
+        // Buscar via Nominatim (nome e tipo)
+        let nominatimResults = await this.searchNominatimPlaces(location, category);
 
-        if (results.length < 15) {
-            try {
-                const overpass = await this.searchOverpass(location, category, radius);
-                results = this.mergeResults(results, overpass);
-            } catch (err) {
-                console.warn('Overpass indisponível, usando apenas Nominatim:', err.message);
-            }
+        // SEMPRE buscar dados detalhados via Overpass (telefone, site, redes sociais)
+        let overpassResults = [];
+        try {
+            overpassResults = await this.searchOverpass(location, category, radius);
+        } catch (err) {
+            console.warn('Overpass indisponível, usando apenas Nominatim:', err.message);
         }
+
+        // Merge: Overpass tem dados mais completos, mas Nominatim pode ter alguns exclusivos
+        const results = this.mergeResults(nominatimResults, overpassResults);
 
         const max = CONFIG.defaults.maxResults || 80;
         return results.slice(0, max);
@@ -214,7 +281,7 @@ const SearchEngine = {
 
     async searchOverpass(location, category, radius) {
         const tags = this.resolveOsmTags(category);
-        const query = this.buildOverpassQuery(location.lat, location.lng, radius, tags);
+        const query = this.buildOverpassQuery(location, radius, tags);
 
         const endpoints = [
             'https://overpass.kumi.systems/api/interpreter',
@@ -244,11 +311,75 @@ const SearchEngine = {
 
     mergeResults(a, b) {
         const map = new Map();
+
         for (const item of [...a, ...b]) {
-            const key = `${item.name?.toLowerCase()}-${item.latitude?.toFixed(4)}`;
-            if (!map.has(key)) map.set(key, item);
+            const key = this.resultKey(item);
+            if (!map.has(key)) {
+                map.set(key, item);
+                continue;
+            }
+
+            const current = map.get(key);
+            map.set(key, this.mergeBusinessData(current, item));
         }
-        return Array.from(map.values());
+
+        return Array.from(map.values())
+            .sort((x, y) => this.dataCompletenessScore(y) - this.dataCompletenessScore(x));
+    },
+
+    resultKey(item) {
+        const cleanName = (item.name || '')
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+        const lat = Number(item.latitude || 0).toFixed(3);
+        const lng = Number(item.longitude || 0).toFixed(3);
+        return `${cleanName}-${lat}-${lng}`;
+    },
+
+    mergeBusinessData(base, incoming) {
+        const richerFirst = this.dataCompletenessScore(incoming) > this.dataCompletenessScore(base)
+            ? [incoming, base]
+            : [base, incoming];
+
+        const [primary, fallback] = richerFirst;
+        return {
+            ...fallback,
+            ...primary,
+            name: primary.name || fallback.name,
+            category: primary.category || fallback.category,
+            address: primary.address || fallback.address,
+            city: primary.city || fallback.city,
+            state: primary.state || fallback.state,
+            phone: primary.phone || fallback.phone,
+            website: primary.website || fallback.website,
+            hasWebsite: Boolean(primary.website || fallback.website || primary.hasWebsite || fallback.hasWebsite),
+            hasMapsLocation: Boolean(primary.hasMapsLocation || fallback.hasMapsLocation),
+            mapsUrl: primary.mapsUrl || fallback.mapsUrl,
+            latitude: primary.latitude || fallback.latitude,
+            longitude: primary.longitude || fallback.longitude,
+            instagram: primary.instagram || fallback.instagram,
+            facebook: primary.facebook || fallback.facebook,
+            whatsapp: primary.whatsapp || fallback.whatsapp,
+            email: primary.email || fallback.email,
+            openingHours: primary.openingHours || fallback.openingHours,
+            postcode: primary.postcode || fallback.postcode,
+        };
+    },
+
+    dataCompletenessScore(item) {
+        let score = 0;
+        if (item.phone) score += 8;
+        if (item.website) score += 8;
+        if (item.facebook) score += 5;
+        if (item.instagram) score += 5;
+        if (item.whatsapp) score += 5;
+        if (item.email) score += 4;
+        if (item.address) score += 4;
+        if (item.openingHours) score += 2;
+        if (item.mapsUrl) score += 1;
+        return score;
     },
 
     categoryToSearchTerm(category) {
@@ -265,40 +396,84 @@ const SearchEngine = {
         return OSM_CATEGORY_MAP[key] || OSM_CATEGORY_MAP[category.trim().toLowerCase()] || DEFAULT_OSM_TAGS;
     },
 
-    buildOverpassQuery(lat, lng, radius, tags) {
+    buildOverpassQuery(location, radius, tags) {
         const conditions = [];
+        const hasBbox = Array.isArray(location.bbox) && location.bbox.length === 4;
+        const bbox = hasBbox
+            ? `(${location.bbox[0]},${location.bbox[2]},${location.bbox[1]},${location.bbox[3]})`
+            : null;
+
         for (const tag of tags) {
             for (const value of tag.v) {
-                conditions.push(`node["${tag.k}"="${value}"](around:${radius},${lat},${lng});`);
+                if (bbox) {
+                    conditions.push(`node["${tag.k}"="${value}"]${bbox};`);
+                    conditions.push(`way["${tag.k}"="${value}"]${bbox};`);
+                    conditions.push(`relation["${tag.k}"="${value}"]${bbox};`);
+                } else {
+                    conditions.push(`node["${tag.k}"="${value}"](around:${radius},${location.lat},${location.lng});`);
+                    conditions.push(`way["${tag.k}"="${value}"](around:${radius},${location.lat},${location.lng});`);
+                    conditions.push(`relation["${tag.k}"="${value}"](around:${radius},${location.lat},${location.lng});`);
+                }
             }
         }
-        return `[out:json][timeout:25];(${conditions.join('')});out body;`;
+        return `[out:json][timeout:35];(${conditions.join('')});out center tags;`;
     },
 
     normalizeOsmElement(el, location) {
         const tags = el.tags || {};
         const lat = el.lat ?? el.center?.lat;
         const lng = el.lon ?? el.center?.lon;
-        const website = tags.website || tags['contact:website'] || null;
+
+        // Website: prioriza o site real, depois considera redes sociais
+        const website = tags.website || tags['contact:website'] || tags.url || null;
+        const facebook = tags['contact:facebook'] || tags.facebook || null;
+        const instagram = tags['contact:instagram'] || tags.instagram || null;
+        const whatsapp = tags['contact:whatsapp'] || tags.whatsapp || null;
+        const email = tags.email || tags['contact:email'] || null;
         const phone = tags.phone || tags['contact:phone'] || tags['contact:mobile'] || null;
+        const openingHours = tags.opening_hours || null;
+
+        // Endereço completo
+        const street = tags['addr:street'] || '';
+        const housenumber = tags['addr:housenumber'] || '';
+        const postcode = tags['addr:postcode'] || '';
+        const suburb = tags['addr:suburb'] || '';
+        const addressParts = [street, housenumber].filter(Boolean);
+        if (suburb && !street) addressParts.push(suburb);
+        const address = addressParts.join(', ') || null;
+
+        // Cidade com mais fontes
+        const city = tags['addr:city'] || location.city || '';
+        const state = tags['addr:state'] || location.state || '';
+
+        // Google Maps
         const hasGoogleMaps = !!(tags['contact:google_maps'] || tags.google_maps || tags['ref:google']);
+        const mapsUrl = lat && lng
+            ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`
+            : null;
 
         return {
             id: `osm-${el.type}-${el.id}`,
             name: tags.name,
             category: this.humanCategory(tags),
-            address: [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(', '),
-            city: tags['addr:city'] || location.city,
-            state: tags['addr:state'] || location.state,
+            address: address || '',
+            city,
+            state,
             phone: phone ? this.formatPhone(phone) : null,
             website: website ? this.normalizeUrl(website) : null,
             hasWebsite: !!website,
             hasMapsLocation: hasGoogleMaps,
-            rating: null,
-            totalReviews: 0,
-            mapsUrl: lat && lng ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}` : null,
+            mapsUrl: mapsUrl || '',
             latitude: lat,
             longitude: lng,
+            instagram: instagram || null,
+            facebook: facebook || null,
+            whatsapp: whatsapp || null,
+            email: email || null,
+            openingHours,
+            rating: null,
+            totalReviews: 0,
+            postcode: postcode || null,
             source: 'openstreetmap',
             osmType: el.type,
             osmId: el.id,
@@ -367,18 +542,25 @@ const SearchEngine = {
     },
 
     applyFilters(results, filters) {
+        if (!filters) return results;
         let filtered = [...results];
-        if (filters?.noWebsite) filtered = filtered.filter(e => !e.hasWebsite);
-        if (filters?.noMaps) filtered = filtered.filter(e => !e.hasMapsLocation);
-        if (filters?.noPhone) filtered = filtered.filter(e => !e.phone);
-        if (filters?.bothMissing) filtered = filtered.filter(e => !e.hasWebsite && !e.hasMapsLocation);
+        if (filters.noWebsite) filtered = filtered.filter(e => !e.hasWebsite);
+        if (filters.noMaps) filtered = filtered.filter(e => !e.hasMapsLocation);
+        if (filters.noPhone) filtered = filtered.filter(e => !e.phone);
+        if (filters.bothMissing) filtered = filtered.filter(e => !e.hasWebsite && !e.hasMapsLocation);
         return filtered;
     },
 
     formatPhone(phone) {
-        const digits = phone.replace(/\D/g, '');
+        let digits = phone.replace(/\D/g, '');
+        // Remove código internacional +55 ou 55
+        if (digits.startsWith('55') && digits.length >= 12) {
+            digits = digits.slice(2);
+        }
         if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
         if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+        // Retorna o original formatado manualmente se possível
+        if (digits.length >= 8) return phone;
         return phone;
     },
 

@@ -1,8 +1,8 @@
 const CONFIG = {
     // Supabase — preencher quando receber as credenciais
     supabase: {
-        url: '',
-        anonKey: ''
+        url: 'https://ufhnivjbtuxdenvjgdpu.supabase.co',
+        anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmaG5pdmpidHV4ZGVudmpnZHB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDA5NjEsImV4cCI6MjA5Njc3Njk2MX0.ftjWM-6nhUlQuGcFmD0UWMMLm8bXGFSL2XChsdxdtT0'
     },
 
     // Google OAuth — login com conta Google
