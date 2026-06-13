@@ -220,10 +220,41 @@ body::after{
     font-weight:600;
 }
 
-#googleBtn{
+/* Botão Google */
+
+.google-btn{
     display:flex;
+    align-items:center;
     justify-content:center;
+    gap:10px;
+    width:100%;
+    padding:15px;
+    border-radius:14px;
+    background:#111;
+    border:1px solid #333;
+    color:#fff;
+    font-size:1rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:.3s;
+    font-family:'Poppins',sans-serif;
     margin-bottom:20px;
+}
+
+.google-btn:hover{
+    transform:translateY(-2px);
+    box-shadow:0 10px 25px rgba(255,255,255,.15);
+    border-color:#555;
+}
+
+.google-btn i{
+    font-size:1.1rem;
+}
+
+.google-btn:disabled{
+    opacity:0.6;
+    cursor:not-allowed;
+    transform:none;
 }
 
 /* Responsivo */
@@ -280,7 +311,9 @@ body::after{
             OU
         </div>
 
-        <div id="googleBtn"></div>
+        <button type="button" class="google-btn" id="googleRegisterBtn" onclick="registerWithGoogle()">
+            <i class="fa-brands fa-google"></i> Criar conta com Google
+        </button>
 
         <div class="register">
             Já possui conta?
@@ -294,7 +327,6 @@ body::after{
 <script src="../assets/js/config.js"></script>
 <!-- Supabase JS SDK v2 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 let supabaseClient = null;
 
@@ -321,23 +353,33 @@ window.addEventListener('load', async function() {
             console.warn('Erro ao verificar sessão:', e);
         }
     }
-    initGoogle();
 });
 
 // Registro com Google via Supabase
-function handleGoogleRegister(response) {
+async function registerWithGoogle() {
+    const btn = document.getElementById('googleRegisterBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Conectando...';
+
     if (supabaseClient) {
-        supabaseClient.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: window.location.origin + '/Dashboard/dashboard.html'
-            }
-        });
+        try {
+            const { data, error } = await supabaseClient.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.origin + '/Dashboard/dashboard.html'
+                }
+            });
+            if (error) throw error;
+        } catch (err) {
+            console.warn('Erro ao criar conta com Google:', err);
+            alert('Erro ao conectar com Google. Verifique se o provedor Google está habilitado no Supabase.');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-brands fa-google"></i> Criar conta com Google';
+        }
     } else {
-        const payload = JSON.parse(atob(response.credential.split('.')[1]));
-        sessionStorage.setItem('saas_user', payload.name || payload.email.split('@')[0]);
-        sessionStorage.setItem('saas_email', payload.email);
-        window.location.href = '../Dashboard/dashboard.html';
+        alert('Supabase não configurado. Crie sua conta com e-mail e senha.');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-brands fa-google"></i> Criar conta com Google';
     }
 }
 
@@ -393,31 +435,6 @@ document.getElementById('registerForm').addEventListener('submit', async functio
         btn.textContent = 'Criar conta';
     }
 });
-
-// Botão Google
-function initGoogle() {
-    if (!CONFIG.googleAuth?.clientId) return;
-
-    const init = () => {
-        google.accounts.id.initialize({
-            client_id: CONFIG.googleAuth.clientId,
-            callback: handleGoogleRegister
-        });
-        google.accounts.id.renderButton(document.getElementById('googleBtn'), {
-            theme: 'filled_black',
-            size: 'large',
-            width: 350,
-            text: 'signup_with',
-            locale: 'pt-BR'
-        });
-    };
-
-    if (window.google?.accounts?.id) init();
-    else {
-        const script = document.querySelector('script[src*="gsi/client"]');
-        if (script) script.addEventListener('load', init);
-    }
-}
 </script>
 
 </body>
