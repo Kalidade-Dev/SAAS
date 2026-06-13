@@ -61,6 +61,7 @@ const CONFIG = {
     // ===== GOOGLE MAPS / PLACES API (OPCIONAL) =====
     // Crie em: Google Cloud Console > APIs & Services > Credentials > API Key
     // Habilite: Places API, Maps JavaScript API
+    // Para usar Google Places, insira sua API Key abaixo
     googleMaps: {
         apiKey: (() => {
             try {
@@ -68,16 +69,24 @@ const CONFIG = {
                     return __ENV__.GOOGLE_MAPS_API_KEY;
                 }
             } catch (e) {}
+            // Insira sua API Key do Google Maps aqui:
             return '';
-        })()
+        })(),
+        // Usar TextSearch (mais completo) ou NearbySearch (mais preciso)
+        useTextSearch: true,
+        // Idioma dos resultados
+        language: 'pt-BR'
     },
 
     // ===== IA PARA ENRIQUECIMENTO (OPCIONAL) =====
-    // Atualmente usa mock (simulação) quando sem chave
+    // Suporta: OpenAI (gpt-4o-mini), Google Gemini (gemini-1.5-flash), ou mock
+    // Configure a API Key para ativar o enriquecimento real
     ai: {
         provider: (() => {
             try {
+                if (typeof __ENV__ !== 'undefined' && __ENV__.AI_PROVIDER) return __ENV__.AI_PROVIDER;
                 if (typeof __ENV__ !== 'undefined' && __ENV__.OPENAI_API_KEY) return 'openai';
+                if (typeof __ENV__ !== 'undefined' && __ENV__.GEMINI_API_KEY) return 'gemini';
             } catch (e) {}
             return 'mock'; // 'openai' | 'gemini' | 'mock'
         })(),
@@ -85,6 +94,9 @@ const CONFIG = {
             try {
                 if (typeof __ENV__ !== 'undefined' && __ENV__.OPENAI_API_KEY) {
                     return __ENV__.OPENAI_API_KEY;
+                }
+                if (typeof __ENV__ !== 'undefined' && __ENV__.GEMINI_API_KEY) {
+                    return __ENV__.GEMINI_API_KEY;
                 }
             } catch (e) {}
             return '';
@@ -94,9 +106,16 @@ const CONFIG = {
                 if (typeof __ENV__ !== 'undefined' && __ENV__.OPENAI_MODEL) {
                     return __ENV__.OPENAI_MODEL;
                 }
+                if (typeof __ENV__ !== 'undefined' && __ENV__.GEMINI_MODEL) {
+                    return __ENV__.GEMINI_MODEL;
+                }
             } catch (e) {}
-            return 'gpt-4o-mini';
-        })()
+            return 'gpt-4o-mini'; // OpenAI: gpt-4o-mini | Gemini: gemini-1.5-flash
+        })(),
+        // Máximo de estabelecimentos a enriquecer por busca
+        maxEnrichmentsPerSearch: 20,
+        // Intervalo mínimo entre requisições (ms)
+        rateLimitInterval: 500
     },
 
     // ===== OPEN STREET MAP (GRATUITO) =====

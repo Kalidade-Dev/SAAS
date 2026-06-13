@@ -316,10 +316,15 @@
 <script src="../assets/js/error-handler.js"></script>
 <script>
 if (CONFIG.googleMaps.apiKey) {
+    const lang = CONFIG.googleMaps.language || 'pt-BR';
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${CONFIG.googleMaps.apiKey}&libraries=places`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${CONFIG.googleMaps.apiKey}&libraries=places&language=${lang}&callback=Function.prototype`;
     s.async = true;
+    s.defer = true;
     document.head.appendChild(s);
+    console.log('[SaaS Maps] Google Maps API carregada (language: ' + lang + ')');
+} else {
+    console.log('[SaaS Maps] Google Maps API não configurada — usando OpenStreetMap');
 }
 </script>
 <script src="../assets/js/supabase-client.js"></script>

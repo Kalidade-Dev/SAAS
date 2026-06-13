@@ -1,6 +1,11 @@
 /**
  * Motor de busca com dados REAIS via OpenStreetMap (Nominatim + Overpass).
- * Opcional: Google Places JS API quando CONFIG.googleMaps.apiKey estiver preenchida.
+ * Opcional: Google Maps JS API quando CONFIG.googleMaps.apiKey estiver preenchida.
+ * 
+ * Melhorias v2:
+ * - Google Places com TextSearch + Details para dados completos
+ * - Enriquecimento IA automático para estabelecimentos com poucos dados
+ * - Busca híbrida: OSM + Google + IA
  */
 
 const CATEGORIES = [
@@ -63,6 +68,9 @@ const DEFAULT_OSM_TAGS = [
 
 const SearchEngine = {
     _lastRequest: 0,
+    _googlePlacesService: null,
+    _googleDetailsQueue: [],
+    _googleProcessing: false,
 
     async search(params) {
         const { city, category, radius, filters } = params;
@@ -70,8 +78,19 @@ const SearchEngine = {
         const location = await this.geocodeCity(city);
         let results;
 
-        if (CONFIG.googleMaps.apiKey && typeof google !== 'undefined' && google?.maps?.places) {
-            results = await this.searchGooglePlaces(location, category, radius);
+        const useGoogle = CONFIG.googleMaps.apiKey && typeof google !== 'undefined' && google?.maps?.places;
+
+        if (useGoogle) {
+            // Busca híbrida: Google Places + OpenStreetMap para dados mais completos
+            const [googleResults, osmResults] = await Promise.allSettled([
+                this.searchGooglePlaces(location, category, radius),
+                this.searchOpenStreetMap(location, category, radius)
+            ]);
+
+            const gData = googleResults.status === 'fulfilled' ? googleResults.value : [];
+            const oData = osmResults.status === 'fulfilled' ? osmResults.value : [];
+
+            results = this.mergeResults([...gData, ...oData]);
         } else {
             results = await this.searchOpenStreetMap(location, category, radius);
         }
@@ -80,10 +99,193 @@ const SearchEngine = {
             throw new Error(`Nenhum estabelecimento encontrado em ${location.city}. Tente outra categoria ou aumente o raio.`);
         }
 
-        // Verificar presença digital de forma precisa
+        // Enriquecer resultados do Google Places com detalhes (telefone, site, etc.)
+        if (useGoogle) {
+            results = await this.enrichGoogleDetails(results);
+        }
+
+        // Verificar presença digital
         results = await this.verifyDigitalPresence(results);
 
+        // Enriquecer com IA estabelecimentos que faltam dados importantes
+        results = await this.aiEnrichBatch(results);
+
         return this.applyFilters(results, filters);
+    },
+
+    /**
+     * Enriquece estabelecimentos do Google Places com detalhes completos
+     * usando a Places Details API (telefone, site, horários, etc.)
+     */
+    async enrichGoogleDetails(results) {
+        const needsEnrichment = results.filter(r =>
+            r.source === 'google_places' && (!r.phone || !r.website || !r.openingHours)
+        );
+
+        if (!needsEnrichment.length || !CONFIG.googleMaps.apiKey) return results;
+
+        // Inicializar serviço Google Places se necessário
+        if (!this._googlePlacesService) {
+            this._googlePlacesService = new google.maps.places.PlacesService(document.createElement('div'));
+        }
+
+        const enriched = [];
+        const batchSize = 5;
+
+        for (let i = 0; i < needsEnrichment.length; i += batchSize) {
+            const batch = needsEnrichment.slice(i, i + batchSize);
+            const details = await Promise.allSettled(
+                batch.map(est => this.getGooglePlaceDetails(est))
+            );
+
+            for (let j = 0; j < batch.length; j++) {
+                const est = batch[j];
+                if (details[j].status === 'fulfilled' && details[j].value) {
+                    const d = details[j].value;
+                    const idx = results.indexOf(est);
+                    if (idx !== -1) {
+                        results[idx] = {
+                            ...est,
+                            phone: est.phone || d.phone || null,
+                            website: est.website || d.website || null,
+                            hasWebsite: est.hasWebsite || !!d.website,
+                            openingHours: est.openingHours || d.openingHours || null,
+                            rating: est.rating || d.rating || null,
+                            totalReviews: est.totalReviews || d.totalReviews || 0,
+                            address: est.address || d.address || est.address,
+                            instagram: est.instagram || d.instagram || null,
+                            facebook: est.facebook || d.facebook || null,
+                            whatsapp: est.whatsapp || d.whatsapp || null,
+                            email: est.email || d.email || null,
+                            googleEnriched: true
+                        };
+                    }
+                }
+            }
+
+            // Rate limiting para Google API
+            if (i + batchSize < needsEnrichment.length) {
+                await this.delay(200);
+            }
+        }
+
+        return results;
+    },
+
+    /**
+     * Obtém detalhes completos de um lugar via Google Places Details API
+     */
+    getGooglePlaceDetails(est) {
+        return new Promise((resolve, reject) => {
+            if (!est.id || est.source !== 'google_places') {
+                resolve(null);
+                return;
+            }
+
+            const timeout = setTimeout(() => resolve(null), 5000);
+
+            this._googlePlacesService.getDetails(
+                {
+                    placeId: est.id,
+                    fields: [
+                        'formatted_phone_number',
+                        'international_phone_number',
+                        'website',
+                        'url',
+                        'opening_hours',
+                        'rating',
+                        'user_ratings_total',
+                        'formatted_address',
+                        'reviews',
+                        'types'
+                    ]
+                },
+                (place, status) => {
+                    clearTimeout(timeout);
+                    if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
+                        resolve(null);
+                        return;
+                    }
+
+                    // Extrair redes sociais do website
+                    const socialMedia = this.extractSocialFromWebsite(place.website);
+
+                    resolve({
+                        phone: place.formatted_phone_number || place.international_phone_number || null,
+                        website: place.website || null,
+                        openingHours: place.opening_hours?.weekday_text?.join(' | ') || null,
+                        rating: place.rating || null,
+                        totalReviews: place.user_ratings_total || 0,
+                        address: place.formatted_address || est.address || null,
+                        mapsUrl: place.url || est.mapsUrl || null,
+                        instagram: socialMedia.instagram || null,
+                        facebook: socialMedia.facebook || null,
+                        whatsapp: socialMedia.whatsapp || null,
+                        email: socialMedia.email || null
+                    });
+                }
+            );
+        });
+    },
+
+    /**
+     * Tenta extrair links de redes sociais do website do estabelecimento
+     */
+    extractSocialFromWebsite(websiteUrl) {
+        const result = { instagram: null, facebook: null, whatsapp: null, email: null };
+        if (!websiteUrl) return result;
+
+        // Mapeamento de domínios de redes sociais conhecidos
+        const socialPatterns = {
+            instagram: /instagram\.com\/([a-zA-Z0-9_.]+)/,
+            facebook: /facebook\.com\/([a-zA-Z0-9_.]+)/,
+            whatsapp: /wa\.me\/(\d+)|api\.whatsapp\.com\/send\?phone=(\d+)|whatsapp:\/\/send\?phone=(\d+)/
+        };
+
+        // Nota: não podemos fazer fetch cross-origin, mas podemos inferir
+        // a partir da URL se ela redireciona para redes sociais
+        try {
+            const url = new URL(websiteUrl);
+            const hostname = url.hostname.toLowerCase();
+
+            if (hostname.includes('instagram.com')) {
+                result.instagram = websiteUrl;
+            } else if (hostname.includes('facebook.com') || hostname.includes('fb.com')) {
+                result.facebook = websiteUrl;
+            } else if (hostname.includes('wa.me') || hostname.includes('whatsapp')) {
+                result.whatsapp = websiteUrl;
+            }
+        } catch {}
+
+        return result;
+    },
+
+    /**
+     * Enriquecimento em lote usando IA para estabelecimentos com poucos dados
+     */
+    async aiEnrichBatch(results) {
+        // Identifica estabelecimentos que precisam de enriquecimento
+        const needsEnrichment = results.filter(r =>
+            !r.phone && !r.website && !r.instagram && !r.facebook
+        ).slice(0, 20); // Limita a 20 por busca para não sobrecarregar
+
+        if (!needsEnrichment.length) return results;
+
+        // Enriquecimento via IA (mock ou API real)
+        for (let i = 0; i < needsEnrichment.length; i++) {
+            const est = needsEnrichment[i];
+            try {
+                const enriched = await AIScanner.enrichOne(est);
+                const idx = results.indexOf(est);
+                if (idx !== -1) {
+                    results[idx] = { ...results[idx], ...enriched, aiEnriched: true };
+                }
+            } catch (err) {
+                console.warn(`IA enrichment failed for ${est.name}:`, err.message);
+            }
+        }
+
+        return results;
     },
 
     async verifyDigitalPresence(results) {
@@ -105,7 +307,6 @@ const SearchEngine = {
                             signal: controller.signal
                         });
                         clearTimeout(timeout);
-                        // no-cors sempre retorna opaque, mas se não deu error o site existe
                         checked.hasWebsite = true;
                     } catch {
                         checked.hasWebsite = false;
@@ -116,24 +317,20 @@ const SearchEngine = {
                 // Validar telefone brasileiro
                 if (est.phone) {
                     let digits = est.phone.replace(/\D/g, '');
-                    // Remover código de país +55 se presente
                     if (digits.startsWith('55') && digits.length > 11) {
                         digits = digits.slice(2);
                     }
-                    // Telefone válido: 10 ou 11 dígitos, começa com DDD válido
                     const ddd = parseInt(digits.slice(0, 2));
                     const validDDD = digits.length >= 2 && ddd >= 11 && ddd <= 99;
                     const validLength = digits.length === 10 || digits.length === 11;
                     checked.hasPhone = validDDD && validLength;
                     if (!checked.hasPhone) {
-                        // Mantém o telefone mesmo que formato não seja padrão
                         checked.phone = est.phone;
                     }
                 } else {
                     checked.hasPhone = false;
                 }
 
-                // Verificar se tem endereço real
                 checked.hasAddress = !!(est.address && est.address.length > 5);
 
                 return checked;
@@ -185,10 +382,8 @@ const SearchEngine = {
     },
 
     async searchOpenStreetMap(location, category, radius) {
-        // Buscar via Nominatim (nome e tipo)
         let nominatimResults = await this.searchNominatimPlaces(location, category);
 
-        // SEMPRE buscar dados detalhados via Overpass (telefone, site, redes sociais)
         let overpassResults = [];
         try {
             overpassResults = await this.searchOverpass(location, category, radius);
@@ -196,7 +391,6 @@ const SearchEngine = {
             console.warn('Overpass indisponível, usando apenas Nominatim:', err.message);
         }
 
-        // Merge: Overpass tem dados mais completos, mas Nominatim pode ter alguns exclusivos
         const results = this.mergeResults(nominatimResults, overpassResults);
 
         const max = CONFIG.defaults.maxResults || 80;
@@ -377,6 +571,7 @@ const SearchEngine = {
         if (item.email) score += 4;
         if (item.address) score += 4;
         if (item.openingHours) score += 2;
+        if (item.rating) score += 3;
         if (item.mapsUrl) score += 1;
         return score;
     },
@@ -423,7 +618,6 @@ const SearchEngine = {
         const lat = el.lat ?? el.center?.lat;
         const lng = el.lon ?? el.center?.lon;
 
-        // Website: prioriza o site real, depois considera redes sociais
         const website = tags.website || tags['contact:website'] || tags.url || null;
         const facebook = tags['contact:facebook'] || tags.facebook || null;
         const instagram = tags['contact:instagram'] || tags.instagram || null;
@@ -432,7 +626,6 @@ const SearchEngine = {
         const phone = tags.phone || tags['contact:phone'] || tags['contact:mobile'] || null;
         const openingHours = tags.opening_hours || null;
 
-        // Endereço completo
         const street = tags['addr:street'] || '';
         const housenumber = tags['addr:housenumber'] || '';
         const postcode = tags['addr:postcode'] || '';
@@ -441,11 +634,9 @@ const SearchEngine = {
         if (suburb && !street) addressParts.push(suburb);
         const address = addressParts.join(', ') || null;
 
-        // Cidade com mais fontes
         const city = tags['addr:city'] || location.city || '';
         const state = tags['addr:state'] || location.state || '';
 
-        // Google Maps
         const hasGoogleMaps = !!(tags['contact:google_maps'] || tags.google_maps || tags['ref:google']);
         const mapsUrl = lat && lng
             ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`
@@ -502,13 +693,66 @@ const SearchEngine = {
     },
 
     async searchGooglePlaces(location, category, radius) {
+        // Usar TextSearch para resultados mais completos
+        const useTextSearch = CONFIG.googleMaps.useTextSearch !== false;
+
+        if (useTextSearch) {
+            return this.googleTextSearch(location, category, radius);
+        }
+
+        return this.googleNearbySearch(location, category, radius);
+    },
+
+    /**
+     * Busca via Google Places TextSearch — mais completa e flexível
+     */
+    googleTextSearch(location, category, radius) {
         return new Promise((resolve, reject) => {
-            const service = new google.maps.places.PlacesService(document.createElement('div'));
-            service.nearbySearch({
+            if (!this._googlePlacesService) {
+                this._googlePlacesService = new google.maps.places.PlacesService(document.createElement('div'));
+            }
+
+            const query = category
+                ? `${category} em ${location.city}, ${location.state || location.country}`
+                : `estabelecimentos comerciais em ${location.city}, ${location.country}`;
+
+            const request = {
+                query: query,
                 location: new google.maps.LatLng(location.lat, location.lng),
-                radius,
-                keyword: category || 'estabelecimento comercial'
-            }, (results, status) => {
+                radius: radius || CONFIG.defaults.radius || 5000,
+                language: 'pt-BR'
+            };
+
+            this._googlePlacesService.textSearch(request, (results, status) => {
+                if (status !== google.maps.places.PlacesServiceStatus.OK) {
+                    // Fallback para NearbySearch
+                    console.warn(`TextSearch falhou (${status}), usando NearbySearch`);
+                    this.googleNearbySearch(location, category, radius).then(resolve).catch(reject);
+                    return;
+                }
+
+                resolve((results || []).map(p => this.normalizeGooglePlace(p, location.city)));
+            });
+        });
+    },
+
+    /**
+     * Busca via Google Places NearbySearch — mais precisa geograficamente
+     */
+    googleNearbySearch(location, category, radius) {
+        return new Promise((resolve, reject) => {
+            if (!this._googlePlacesService) {
+                this._googlePlacesService = new google.maps.places.PlacesService(document.createElement('div'));
+            }
+
+            const request = {
+                location: new google.maps.LatLng(location.lat, location.lng),
+                radius: radius || CONFIG.defaults.radius || 5000,
+                keyword: category || 'estabelecimento comercial',
+                language: 'pt-BR'
+            };
+
+            this._googlePlacesService.nearbySearch(request, (results, status) => {
                 if (status !== google.maps.places.PlacesServiceStatus.OK) {
                     reject(new Error('Google Places: ' + status));
                     return;
@@ -519,13 +763,18 @@ const SearchEngine = {
     },
 
     normalizeGooglePlace(place, city) {
+        // Extrair redes sociais dos tipos e dados disponíveis
+        const types = place.types || [];
+        const vicinity = place.vicinity || '';
+
         return {
             id: place.place_id,
             name: place.name,
-            category: place.types?.[0]?.replace(/_/g, ' ') || 'Estabelecimento',
-            address: place.vicinity || '',
+            category: this.googleCategoryFromTypes(types),
+            address: vicinity,
             city,
-            phone: null,
+            state: '',
+            phone: null, // Será preenchido pelo enrichGoogleDetails
             website: null,
             hasWebsite: false,
             hasMapsLocation: true,
@@ -536,8 +785,60 @@ const SearchEngine = {
             longitude: place.geometry?.location?.lng(),
             source: 'google_places',
             aiEnriched: false,
+            instagram: null,
+            facebook: null,
+            whatsapp: null,
+            email: null,
+            openingHours: null,
             createdAt: new Date().toISOString()
         };
+    },
+
+    /**
+     * Converte tipos do Google Places em categorias legíveis
+     */
+    googleCategoryFromTypes(types) {
+        const categoryMap = {
+            'restaurant': 'Restaurante',
+            'food': 'Restaurante',
+            'cafe': 'Café',
+            'bakery': 'Padaria',
+            'meal_takeaway': 'Fast Food',
+            'meal_delivery': 'Delivery',
+            'pharmacy': 'Farmácia',
+            'hair_care': 'Salão de Beleza',
+            'beauty_salon': 'Salão de Beleza',
+            'barber_shop': 'Barbearia',
+            'car_repair': 'Oficina Mecânica',
+            'pet_store': 'Pet Shop',
+            'clothing_store': 'Loja de Roupas',
+            'shoe_store': 'Loja de Sapatos',
+            'jewelry_store': 'Joalheria',
+            'dentist': 'Dentista',
+            'gym': 'Academia',
+            'supermarket': 'Supermercado',
+            'grocery_or_supermarket': 'Supermercado',
+            'convenience_store': 'Conveniência',
+            'florist': 'Floricultura',
+            'real_estate_agency': 'Imobiliária',
+            'lawyer': 'Advocacia',
+            'accounting': 'Contabilidade',
+            'school': 'Escola',
+            'hospital': 'Hospital',
+            'doctor': 'Médico',
+            'veterinary_care': 'Veterinário',
+            'hardware_store': 'Loja de Materiais',
+            'electronics_store': 'Loja de Eletrônicos',
+            'furniture_store': 'Loja de Móveis',
+            'home_goods_store': 'Casa & Decoração',
+            'store': 'Loja',
+            'establishment': 'Estabelecimento'
+        };
+
+        for (const type of types) {
+            if (categoryMap[type]) return categoryMap[type];
+        }
+        return types[0]?.replace(/_/g, ' ') || 'Estabelecimento';
     },
 
     applyFilters(results, filters) {
@@ -552,13 +853,11 @@ const SearchEngine = {
 
     formatPhone(phone) {
         let digits = phone.replace(/\D/g, '');
-        // Remove código internacional +55 ou 55
         if (digits.startsWith('55') && digits.length >= 12) {
             digits = digits.slice(2);
         }
         if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
         if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-        // Retorna o original formatado manualmente se possível
         if (digits.length >= 8) return phone;
         return phone;
     },
@@ -571,5 +870,9 @@ const SearchEngine = {
         const ddd = ['11', '21', '31', '41', '51', '61', '71', '81', '85'][Math.floor(Math.random() * 9)];
         const num = Math.floor(900000000 + Math.random() * 99999999);
         return `(${ddd}) 9${String(num).slice(0, 4)}-${String(num).slice(4, 8)}`;
+    },
+
+    delay(ms) {
+        return new Promise(r => setTimeout(r, ms));
     }
 };
